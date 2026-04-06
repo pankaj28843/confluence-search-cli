@@ -19,9 +19,9 @@ var (
 
 func main() {
 	root := &cobra.Command{
-		Use:   "csearch",
+		Use:   "confluence-search",
 		Short: "Fast Confluence search from the command line",
-		Long: `csearch - Confluence Search CLI
+		Long: `confluence-search - Confluence Search CLI
 
 Search Confluence pages and fetch content directly from the terminal.
 Translates natural language queries to CQL and calls the Confluence REST API.
@@ -31,10 +31,10 @@ Requires environment variables:
   CONFLUENCE_PERSONAL_ACCESS_TOKEN  Personal access token for auth
 
 Workflow:
-  csearch search "deployment process"           Search pages
-  csearch search "API docs" --spaces ENG,OPS    Filter by space
-  csearch fetch 12345                           Fetch page content
-  csearch health                                Check API connectivity`,
+  confluence-search search "deployment process"           Search pages
+  confluence-search search "API docs" --spaces ENG,OPS    Filter by space
+  confluence-search fetch 12345                           Fetch page content
+  confluence-search health                                Check API connectivity`,
 		SilenceUsage:  true,
 		SilenceErrors: true,
 	}
@@ -92,12 +92,12 @@ By default returns pages modified within the last 2 years. Archived and
 trashed pages are always excluded.
 
 Examples:
-  csearch search "deployment process"
-  csearch search "API documentation" --spaces ENG,OPS
-  csearch search "release notes" --labels release,changelog
-  csearch search "onboarding" --titles-only
-  csearch search "architecture" --modified-after 30d
-  csearch search "design doc" --dry-run    # Show CQL without executing`,
+  confluence-search search "deployment process"
+  confluence-search search "API documentation" --spaces ENG,OPS
+  confluence-search search "release notes" --labels release,changelog
+  confluence-search search "onboarding" --titles-only
+  confluence-search search "architecture" --modified-after 30d
+  confluence-search search "design doc" --dry-run    # Show CQL without executing`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			w := getWriter()
@@ -183,8 +183,8 @@ The content ID is returned in search results. The page body is converted
 from Confluence storage HTML to readable markdown.
 
 Examples:
-  csearch fetch 12345
-  csearch fetch 12345 --json`,
+  confluence-search fetch 12345
+  confluence-search fetch 12345 --json`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			w := getWriter()
@@ -239,8 +239,8 @@ func healthCmd() *cobra.Command {
 authentication token is valid.
 
 Examples:
-  csearch health
-  csearch health --json`,
+  confluence-search health
+  confluence-search health --json`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			w := getWriter()

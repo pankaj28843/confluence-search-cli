@@ -1,6 +1,6 @@
 .PHONY: build install uninstall test clean
 
-BINARY := csearch
+BINARY := confluence-search
 
 INSTALL_DIR := $(shell \
 	if [ -d "$$HOME/.local/bin" ] && echo "$$PATH" | grep -q "$$HOME/.local/bin"; then \
@@ -12,7 +12,7 @@ INSTALL_DIR := $(shell \
 	fi)
 
 build:
-	go build -o $(BINARY) ./cmd/csearch/
+	go build -o $(BINARY) ./cmd/confluence-search/
 
 install: build
 	@mkdir -p $(INSTALL_DIR)

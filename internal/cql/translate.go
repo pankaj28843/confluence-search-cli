@@ -94,6 +94,6 @@ func dateClause(field, value string) string {
 
 func escape(s string) string {
 	s = strings.ReplaceAll(s, `"`, `\"`)
-	s = strings.ReplaceAll(s, "&", "and")
+	s = strings.ReplaceAll(s, "&", " and ")
 	return s
 }

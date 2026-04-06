@@ -76,8 +76,8 @@ func TestTranslateEscapesAmpersand(t *testing.T) {
 	if strings.Contains(result, "&") {
 		t.Errorf("expected ampersand escaped, got: %s", result)
 	}
-	if !strings.Contains(result, "Qand") {
-		t.Errorf("expected 'and' replacement, got: %s", result)
+	if !strings.Contains(result, "Q and A") {
+		t.Errorf("expected 'Q and A' replacement, got: %s", result)
 	}
 }
 

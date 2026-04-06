@@ -3,7 +3,7 @@ module github.com/pankaj28843/confluence-search-cli
 go 1.25.0
 
 require (
-	github.com/PuerkitoBio/goquery v1.12.0
+	github.com/PuerkitoBio/goquery v1.10.0
 	github.com/spf13/cobra v1.10.2
 )
 

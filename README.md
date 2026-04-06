@@ -16,7 +16,7 @@ cd confluence-search-cli
 make install    # installs to ~/.local/bin/confluence-search
 ```
 
-Requires Go 1.22+.
+Requires Go 1.22+ (auto-downloads Go 1.25 toolchain via `go.mod`).
 
 ## Setup
 

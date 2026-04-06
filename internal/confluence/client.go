@@ -60,6 +60,34 @@ type ContentPage struct {
 	Ancestors    []string `json:"ancestors,omitempty"`
 }
 
+// FormatMarkdown renders the page as a self-contained markdown document
+// with metadata header. Matches the Python MCP server's output format.
+func (p *ContentPage) FormatMarkdown() string {
+	var sb strings.Builder
+	sb.WriteString("# " + p.Title + "\n\n")
+	sb.WriteString("**URL:** " + p.URL + "\n")
+	if p.SpaceKey != "" {
+		sb.WriteString("**Space:** " + p.SpaceKey + "\n")
+	}
+	if p.Version > 0 {
+		sb.WriteString(fmt.Sprintf("**Version:** %d\n", p.Version))
+	}
+	if p.LastModified != "" {
+		sb.WriteString("**Last modified:** " + p.LastModified + "\n")
+	}
+	if len(p.Labels) > 0 {
+		sb.WriteString("**Labels:** " + strings.Join(p.Labels, ", ") + "\n")
+	}
+	if len(p.Ancestors) > 0 {
+		sb.WriteString("**Ancestors:** " + strings.Join(p.Ancestors, " > ") + "\n")
+	}
+	sb.WriteString("\n---\n\n")
+	if p.Markdown != "" {
+		sb.WriteString(p.Markdown)
+	}
+	return sb.String()
+}
+
 // Search executes a CQL search against Confluence REST API.
 func (c *Client) Search(cql string, limit int) (*SearchResponse, error) {
 	params := url.Values{

@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"os"
-	"strings"
 
 	"github.com/pankaj28843/confluence-search-cli/internal/confluence"
 	"github.com/pankaj28843/confluence-search-cli/internal/cql"
@@ -204,28 +203,7 @@ Examples:
 				return w.JSON(page)
 			}
 
-			// Render as markdown document
-			w.Text("# %s\n\n", page.Title)
-			w.Text("**URL:** %s\n", page.URL)
-			if page.SpaceKey != "" {
-				w.Text("**Space:** %s\n", page.SpaceKey)
-			}
-			if page.Version > 0 {
-				w.Text("**Version:** %d\n", page.Version)
-			}
-			if page.LastModified != "" {
-				w.Text("**Last modified:** %s\n", page.LastModified)
-			}
-			if len(page.Labels) > 0 {
-				w.Text("**Labels:** %s\n", strings.Join(page.Labels, ", "))
-			}
-			if len(page.Ancestors) > 0 {
-				w.Text("**Ancestors:** %s\n", strings.Join(page.Ancestors, " > "))
-			}
-			w.Text("\n---\n\n")
-			if page.Markdown != "" {
-				w.Text("%s\n", page.Markdown)
-			}
+			w.Text("%s\n", page.FormatMarkdown())
 			return nil
 		},
 	}

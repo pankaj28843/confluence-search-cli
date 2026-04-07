@@ -8,6 +8,7 @@ import (
 
 func parseSearchHit(raw json.RawMessage, baseURL string) (SearchResult, error) {
 	var payload struct {
+		ID           string `json:"id"`
 		Title        string `json:"title"`
 		Excerpt      string `json:"excerpt"`
 		LastModified string `json:"lastModified"`
@@ -37,8 +38,8 @@ func parseSearchHit(raw json.RawMessage, baseURL string) (SearchResult, error) {
 		return SearchResult{}, fmt.Errorf("missing URL")
 	}
 
-	var contentID string
-	if payload.Content != nil {
+	contentID := payload.ID
+	if contentID == "" && payload.Content != nil {
 		contentID = payload.Content.ID
 	}
 
@@ -130,6 +131,75 @@ func parseContentPage(body []byte, baseURL string) (*ContentPage, error) {
 	}
 
 	return page, nil
+}
+
+func parseComments(body []byte) ([]Comment, error) {
+	var raw struct {
+		Results []json.RawMessage `json:"results"`
+	}
+	if err := json.Unmarshal(body, &raw); err != nil {
+		return nil, fmt.Errorf("parse comments: %w", err)
+	}
+
+	var comments []Comment
+	for _, r := range raw.Results {
+		var payload struct {
+			ID      string `json:"id"`
+			Version *struct {
+				By *struct {
+					DisplayName string `json:"displayName"`
+				} `json:"by"`
+				When string `json:"when"`
+			} `json:"version"`
+			Body *struct {
+				View *struct {
+					Value string `json:"value"`
+				} `json:"view"`
+			} `json:"body"`
+			Extensions *struct {
+				Location         string `json:"location"`
+				InlineProperties *struct {
+					OriginalSelection string `json:"originalSelection"`
+				} `json:"inlineProperties"`
+				Resolution *struct {
+					Status string `json:"status"`
+				} `json:"resolution"`
+			} `json:"extensions"`
+		}
+		if err := json.Unmarshal(r, &payload); err != nil {
+			continue
+		}
+
+		c := Comment{ID: payload.ID}
+
+		if payload.Version != nil {
+			if payload.Version.By != nil {
+				c.Author = payload.Version.By.DisplayName
+			}
+			c.Date = payload.Version.When
+		}
+
+		if payload.Body != nil && payload.Body.View != nil {
+			c.Body = HTMLToMarkdown(payload.Body.View.Value)
+		}
+
+		if payload.Extensions != nil {
+			c.Location = payload.Extensions.Location
+			if payload.Extensions.InlineProperties != nil {
+				c.InlineOriginalSelection = payload.Extensions.InlineProperties.OriginalSelection
+			}
+			if payload.Extensions.Resolution != nil && payload.Extensions.Resolution.Status == "resolved" {
+				c.Resolved = true
+			}
+		}
+
+		if c.Location == "" {
+			c.Location = "footer"
+		}
+
+		comments = append(comments, c)
+	}
+	return comments, nil
 }
 
 func resolveURL(base, webUI, fallbackBase string) string {

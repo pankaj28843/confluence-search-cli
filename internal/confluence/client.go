@@ -47,17 +47,29 @@ type SearchResponse struct {
 	NextStart *int           `json:"next_start,omitempty"`
 }
 
+// Comment represents a single Confluence page comment (inline or footer).
+type Comment struct {
+	ID                      string `json:"id"`
+	Author                  string `json:"author"`
+	Date                    string `json:"date"`
+	Body                    string `json:"body"`
+	Location                string `json:"location"`                           // "inline", "footer", or "resolved"
+	InlineOriginalSelection string `json:"inline_original_selection,omitempty"` // text the inline comment is attached to
+	Resolved                bool   `json:"resolved,omitempty"`
+}
+
 // ContentPage represents a fetched Confluence page.
 type ContentPage struct {
-	ID           string   `json:"id"`
-	Title        string   `json:"title"`
-	URL          string   `json:"url"`
-	Markdown     string   `json:"markdown"`
-	SpaceKey     string   `json:"space_key,omitempty"`
-	Version      int      `json:"version,omitempty"`
-	LastModified string   `json:"last_modified,omitempty"`
-	Labels       []string `json:"labels,omitempty"`
-	Ancestors    []string `json:"ancestors,omitempty"`
+	ID           string    `json:"id"`
+	Title        string    `json:"title"`
+	URL          string    `json:"url"`
+	Markdown     string    `json:"markdown"`
+	SpaceKey     string    `json:"space_key,omitempty"`
+	Version      int       `json:"version,omitempty"`
+	LastModified string    `json:"last_modified,omitempty"`
+	Labels       []string  `json:"labels,omitempty"`
+	Ancestors    []string  `json:"ancestors,omitempty"`
+	Comments     []Comment `json:"comments,omitempty"`
 }
 
 // FormatMarkdown renders the page as a self-contained markdown document
@@ -85,7 +97,49 @@ func (p *ContentPage) FormatMarkdown() string {
 	if p.Markdown != "" {
 		sb.WriteString(p.Markdown)
 	}
+	if len(p.Comments) > 0 {
+		sb.WriteString("\n\n---\n\n")
+		sb.WriteString(fmt.Sprintf("## Comments (%d)\n\n", len(p.Comments)))
+
+		var footer, inline []Comment
+		for _, c := range p.Comments {
+			if c.Location == "inline" {
+				inline = append(inline, c)
+			} else {
+				footer = append(footer, c)
+			}
+		}
+
+		if len(footer) > 0 {
+			sb.WriteString("### Footer Comments\n\n")
+			for _, c := range footer {
+				writeComment(&sb, c)
+			}
+		}
+		if len(inline) > 0 {
+			sb.WriteString("### Inline Comments\n\n")
+			for _, c := range inline {
+				if c.InlineOriginalSelection != "" {
+					sb.WriteString("> \"" + c.InlineOriginalSelection + "\"\n\n")
+				}
+				writeComment(&sb, c)
+			}
+		}
+	}
 	return sb.String()
+}
+
+func writeComment(sb *strings.Builder, c Comment) {
+	date := c.Date
+	if len(date) >= 10 {
+		date = date[:10]
+	}
+	header := fmt.Sprintf("**%s** (%s)", c.Author, date)
+	if c.Resolved {
+		header += " [resolved]"
+	}
+	sb.WriteString(header + ":\n")
+	sb.WriteString(c.Body + "\n\n")
 }
 
 // Search executes a CQL search against Confluence REST API.
@@ -134,6 +188,22 @@ func (c *Client) FetchContent(contentID string) (*ContentPage, error) {
 	}
 
 	return parseContentPage(body, c.BaseURL)
+}
+
+// FetchComments retrieves comments (inline + footer + resolved) for a page.
+func (c *Client) FetchComments(contentID string) ([]Comment, error) {
+	params := url.Values{
+		"expand":   {"body.view,version,extensions.inlineProperties,extensions.resolution"},
+		"location": {"footer", "inline", "resolved"},
+		"limit":    {"100"},
+	}
+
+	body, err := c.get("/content/"+url.PathEscape(contentID)+"/child/comment", params)
+	if err != nil {
+		return nil, fmt.Errorf("fetch comments: %w", err)
+	}
+
+	return parseComments(body)
 }
 
 // HealthCheck performs a minimal API call to verify connectivity.

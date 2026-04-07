@@ -173,17 +173,21 @@ Examples:
 }
 
 func fetchCmd() *cobra.Command {
-	return &cobra.Command{
+	var noComments bool
+
+	cmd := &cobra.Command{
 		Use:   "fetch <content-id>",
 		Short: "Fetch a Confluence page by content ID",
 		Long: `Fetch the full content of a Confluence page by its numeric content ID.
 
 The content ID is returned in search results. The page body is converted
-from Confluence storage HTML to readable markdown.
+from Confluence storage HTML to readable markdown. Comments (inline and
+footer) are included by default; use --no-comments to suppress them.
 
 Examples:
   confluence-search fetch 12345
-  confluence-search fetch 12345 --json`,
+  confluence-search fetch 12345 --json
+  confluence-search fetch 12345 --no-comments`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			w := getWriter()
@@ -199,6 +203,15 @@ Examples:
 				return fmt.Errorf("fetch failed: %w", err)
 			}
 
+			if !noComments {
+				comments, err := client.FetchComments(args[0])
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "Warning: could not fetch comments: %s\n", err)
+				} else {
+					page.Comments = comments
+				}
+			}
+
 			if w.Format == output.FormatJSON {
 				return w.JSON(page)
 			}
@@ -207,6 +220,9 @@ Examples:
 			return nil
 		},
 	}
+
+	cmd.Flags().BoolVar(&noComments, "no-comments", false, "Do not fetch or display page comments")
+	return cmd
 }
 
 func healthCmd() *cobra.Command {

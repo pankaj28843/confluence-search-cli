@@ -71,6 +71,38 @@ func TestStripHTML(t *testing.T) {
 	}
 }
 
+func TestFormatMarkdownWithComments(t *testing.T) {
+	page := &ContentPage{
+		Title:    "Test Page",
+		URL:      "https://wiki.example.com/pages/123",
+		SpaceKey: "ENG",
+		Markdown: "# Content\n\nBody text.",
+		Comments: []Comment{
+			{ID: "1", Author: "Jane", Date: "2026-01-15T10:30:00Z", Body: "Looks good.", Location: "footer"},
+			{ID: "2", Author: "Alice", Date: "2026-02-01T09:00:00Z", Body: "Outdated section.", Location: "inline", InlineOriginalSelection: "deployment steps", Resolved: true},
+		},
+	}
+	md := page.FormatMarkdown()
+	if !strings.Contains(md, "## Comments (2)") {
+		t.Error("expected comments header")
+	}
+	if !strings.Contains(md, "### Footer Comments") {
+		t.Error("expected footer section")
+	}
+	if !strings.Contains(md, "### Inline Comments") {
+		t.Error("expected inline section")
+	}
+	if !strings.Contains(md, "**Jane** (2026-01-15)") {
+		t.Error("expected footer comment author/date")
+	}
+	if !strings.Contains(md, "> \"deployment steps\"") {
+		t.Error("expected inline original selection quote")
+	}
+	if !strings.Contains(md, "[resolved]") {
+		t.Error("expected resolved label")
+	}
+}
+
 func TestContentPageFormatMarkdown(t *testing.T) {
 	page := &ContentPage{
 		Title:        "Test Page",

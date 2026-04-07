@@ -41,6 +41,22 @@ func TestParseSearchHit(t *testing.T) {
 	}
 }
 
+func TestParseSearchHitTopLevelID(t *testing.T) {
+	raw := json.RawMessage(`{
+		"id": "67890",
+		"title": "Top Level ID",
+		"excerpt": "",
+		"_links": {"webui": "/display/ENG/Top", "base": "https://wiki.example.com"}
+	}`)
+	hit, err := parseSearchHit(raw, "https://wiki.example.com")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if hit.ContentID != "67890" {
+		t.Errorf("content_id = %q, want 67890", hit.ContentID)
+	}
+}
+
 func TestParseSearchHitMissingURL(t *testing.T) {
 	raw := json.RawMessage(`{"title": "No URL", "_links": {}}`)
 	_, err := parseSearchHit(raw, "https://wiki.example.com")
@@ -83,6 +99,77 @@ func TestParseContentPage(t *testing.T) {
 	// Markdown should be converted from HTML
 	if page.Markdown == "" {
 		t.Error("expected markdown content")
+	}
+}
+
+func TestParseComments(t *testing.T) {
+	body := []byte(`{
+		"results": [
+			{
+				"id": "1001",
+				"version": {"by": {"displayName": "Jane Doe"}, "when": "2026-01-15T10:30:00Z"},
+				"body": {"view": {"value": "<p>This needs updating.</p>"}},
+				"extensions": {"location": "footer"}
+			},
+			{
+				"id": "1002",
+				"version": {"by": {"displayName": "Bob Smith"}, "when": "2026-01-20T14:00:00Z"},
+				"body": {"view": {"value": "<p>Done, updated in v5.</p>"}},
+				"extensions": {"location": "footer"}
+			},
+			{
+				"id": "1003",
+				"version": {"by": {"displayName": "Alice Chen"}, "when": "2026-02-01T09:00:00Z"},
+				"body": {"view": {"value": "<p>This section is outdated.</p>"}},
+				"extensions": {
+					"location": "inline",
+					"inlineProperties": {"originalSelection": "the deployment steps"},
+					"resolution": {"status": "resolved"}
+				}
+			}
+		],
+		"start": 0, "limit": 25, "size": 3
+	}`)
+
+	comments, err := parseComments(body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(comments) != 3 {
+		t.Fatalf("expected 3 comments, got %d", len(comments))
+	}
+
+	// Footer comment
+	if comments[0].Author != "Jane Doe" {
+		t.Errorf("comment[0] author = %q", comments[0].Author)
+	}
+	if comments[0].Location != "footer" {
+		t.Errorf("comment[0] location = %q", comments[0].Location)
+	}
+	if comments[0].Body == "" {
+		t.Error("comment[0] body is empty")
+	}
+
+	// Inline comment with resolution
+	if comments[2].Location != "inline" {
+		t.Errorf("comment[2] location = %q", comments[2].Location)
+	}
+	if comments[2].InlineOriginalSelection != "the deployment steps" {
+		t.Errorf("comment[2] originalSelection = %q", comments[2].InlineOriginalSelection)
+	}
+	if !comments[2].Resolved {
+		t.Error("comment[2] should be resolved")
+	}
+}
+
+func TestParseCommentsEmpty(t *testing.T) {
+	body := []byte(`{"results": [], "start": 0, "limit": 25, "size": 0}`)
+	comments, err := parseComments(body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(comments) != 0 {
+		t.Errorf("expected 0 comments, got %d", len(comments))
 	}
 }
 

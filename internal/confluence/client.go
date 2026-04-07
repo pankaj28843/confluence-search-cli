@@ -1,6 +1,7 @@
 package confluence
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -10,6 +11,21 @@ import (
 	"time"
 )
 
+const (
+	// DefaultHTTPTimeout is the default timeout for HTTP requests.
+	DefaultHTTPTimeout = 20 * time.Second
+	maxErrorBodyLen    = 200
+	defaultUserAgent   = "confluence-search-cli/0.1"
+)
+
+// API defines the operations available on the Confluence REST API.
+type API interface {
+	Search(ctx context.Context, cql string, limit int) (*SearchResponse, error)
+	FetchContent(ctx context.Context, contentID string) (*ContentPage, error)
+	FetchComments(ctx context.Context, contentID string) ([]Comment, error)
+	HealthCheck(ctx context.Context) error
+}
+
 // Client is a lightweight Confluence REST API client.
 type Client struct {
 	BaseURL    string
@@ -18,15 +34,18 @@ type Client struct {
 	UserAgent  string
 }
 
+// Compile-time check that Client implements API.
+var _ API = (*Client)(nil)
+
 // NewClient creates a client from environment config.
 func NewClient(baseURL, token string) *Client {
 	return &Client{
 		BaseURL: strings.TrimRight(baseURL, "/"),
 		Token:   token,
 		HTTPClient: &http.Client{
-			Timeout: 20 * time.Second,
+			Timeout: DefaultHTTPTimeout,
 		},
-		UserAgent: "confluence-search-cli/0.1",
+		UserAgent: defaultUserAgent,
 	}
 }
 
@@ -143,14 +162,14 @@ func writeComment(sb *strings.Builder, c Comment) {
 }
 
 // Search executes a CQL search against Confluence REST API.
-func (c *Client) Search(cql string, limit int) (*SearchResponse, error) {
+func (c *Client) Search(ctx context.Context, cql string, limit int) (*SearchResponse, error) {
 	params := url.Values{
 		"cql":     {cql},
 		"limit":   {fmt.Sprintf("%d", limit)},
 		"excerpt": {"highlight"},
 	}
 
-	body, err := c.get("/content/search", params)
+	body, err := c.get(ctx, "/content/search", params)
 	if err != nil {
 		return nil, fmt.Errorf("search: %w", err)
 	}
@@ -177,12 +196,12 @@ func (c *Client) Search(cql string, limit int) (*SearchResponse, error) {
 }
 
 // FetchContent retrieves a page by content ID with full body.
-func (c *Client) FetchContent(contentID string) (*ContentPage, error) {
+func (c *Client) FetchContent(ctx context.Context, contentID string) (*ContentPage, error) {
 	params := url.Values{
 		"expand": {"body.storage,metadata.labels,version,space,ancestors"},
 	}
 
-	body, err := c.get("/content/"+url.PathEscape(contentID), params)
+	body, err := c.get(ctx, "/content/"+url.PathEscape(contentID), params)
 	if err != nil {
 		return nil, fmt.Errorf("fetch content: %w", err)
 	}
@@ -191,14 +210,14 @@ func (c *Client) FetchContent(contentID string) (*ContentPage, error) {
 }
 
 // FetchComments retrieves comments (inline + footer + resolved) for a page.
-func (c *Client) FetchComments(contentID string) ([]Comment, error) {
+func (c *Client) FetchComments(ctx context.Context, contentID string) ([]Comment, error) {
 	params := url.Values{
 		"expand":   {"body.view,version,extensions.inlineProperties,extensions.resolution"},
 		"location": {"footer", "inline", "resolved"},
 		"limit":    {"100"},
 	}
 
-	body, err := c.get("/content/"+url.PathEscape(contentID)+"/child/comment", params)
+	body, err := c.get(ctx, "/content/"+url.PathEscape(contentID)+"/child/comment", params)
 	if err != nil {
 		return nil, fmt.Errorf("fetch comments: %w", err)
 	}
@@ -207,19 +226,19 @@ func (c *Client) FetchComments(contentID string) ([]Comment, error) {
 }
 
 // HealthCheck performs a minimal API call to verify connectivity.
-func (c *Client) HealthCheck() error {
+func (c *Client) HealthCheck(ctx context.Context) error {
 	params := url.Values{
 		"cql":   {"type=page"},
 		"limit": {"1"},
 	}
-	_, err := c.get("/content/search", params)
+	_, err := c.get(ctx, "/content/search", params)
 	return err
 }
 
-func (c *Client) get(path string, params url.Values) ([]byte, error) {
+func (c *Client) get(ctx context.Context, path string, params url.Values) ([]byte, error) {
 	u := fmt.Sprintf("%s/rest/api%s?%s", c.BaseURL, path, params.Encode())
 
-	req, err := http.NewRequest("GET", u, nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", u, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -239,7 +258,7 @@ func (c *Client) get(path string, params url.Values) ([]byte, error) {
 	}
 
 	if resp.StatusCode >= 400 {
-		return nil, fmt.Errorf("HTTP %d: %s", resp.StatusCode, truncate(string(body), 200))
+		return nil, fmt.Errorf("HTTP %d: %s", resp.StatusCode, truncate(string(body), maxErrorBodyLen))
 	}
 	return body, nil
 }

@@ -1,8 +1,10 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
+	"os/signal"
 
 	"github.com/pankaj28843/confluence-search-cli/internal/confluence"
 	"github.com/pankaj28843/confluence-search-cli/internal/cql"
@@ -10,10 +12,15 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const defaultSearchLimit = 5
+
 var (
 	jsonOutput bool
 	timing     bool
 	version    = "dev"
+
+	// clientFactory builds the API client. Overridden in tests.
+	clientFactory = getClient
 )
 
 func main() {
@@ -52,7 +59,7 @@ Workflow:
 	}
 }
 
-func getClient() (*confluence.Client, error) {
+func getClient() (confluence.API, error) {
 	baseURL := os.Getenv("CONFLUENCE_URL")
 	if baseURL == "" {
 		return nil, fmt.Errorf("CONFLUENCE_URL environment variable is required")
@@ -69,6 +76,11 @@ func getClient() (*confluence.Client, error) {
 
 func getWriter() *output.Writer {
 	return output.New(jsonOutput, timing)
+}
+
+// newContext returns a context that cancels on interrupt signals (Ctrl+C).
+func newContext() (context.Context, context.CancelFunc) {
+	return signal.NotifyContext(context.Background(), os.Interrupt)
 }
 
 func searchCmd() *cobra.Command {
@@ -99,6 +111,9 @@ Examples:
   confluence-search search "design doc" --dry-run    # Show CQL without executing`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			ctx, cancel := newContext()
+			defer cancel()
+
 			w := getWriter()
 			defer w.Finish()
 
@@ -124,12 +139,12 @@ Examples:
 				return nil
 			}
 
-			client, err := getClient()
+			client, err := clientFactory()
 			if err != nil {
 				return err
 			}
 
-			resp, err := client.Search(cqlStr, limit)
+			resp, err := client.Search(ctx, cqlStr, limit)
 			if err != nil {
 				return fmt.Errorf("search failed: %w", err)
 			}
@@ -162,7 +177,7 @@ Examples:
 		},
 	}
 
-	cmd.Flags().IntVar(&limit, "limit", 5, "Maximum number of results (1-25)")
+	cmd.Flags().IntVar(&limit, "limit", defaultSearchLimit, "Maximum number of results (1-25)")
 	cmd.Flags().StringSliceVar(&spaces, "spaces", nil, "Filter by space keys (comma-separated)")
 	cmd.Flags().StringSliceVar(&labels, "labels", nil, "Filter by labels (comma-separated)")
 	cmd.Flags().BoolVar(&titlesOnly, "titles-only", false, "Search titles only")
@@ -190,21 +205,24 @@ Examples:
   confluence-search fetch 12345 --no-comments`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			ctx, cancel := newContext()
+			defer cancel()
+
 			w := getWriter()
 			defer w.Finish()
 
-			client, err := getClient()
+			client, err := clientFactory()
 			if err != nil {
 				return err
 			}
 
-			page, err := client.FetchContent(args[0])
+			page, err := client.FetchContent(ctx, args[0])
 			if err != nil {
 				return fmt.Errorf("fetch failed: %w", err)
 			}
 
 			if !noComments {
-				comments, err := client.FetchComments(args[0])
+				comments, err := client.FetchComments(ctx, args[0])
 				if err != nil {
 					fmt.Fprintf(os.Stderr, "Warning: could not fetch comments: %s\n", err)
 				} else {
@@ -237,15 +255,18 @@ Examples:
   confluence-search health --json`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			ctx, cancel := newContext()
+			defer cancel()
+
 			w := getWriter()
 			defer w.Finish()
 
-			client, err := getClient()
+			client, err := clientFactory()
 			if err != nil {
 				return err
 			}
 
-			err = client.HealthCheck()
+			err = client.HealthCheck(ctx)
 			if err != nil {
 				if w.Format == output.FormatJSON {
 					return w.JSON(map[string]string{"status": "error", "error": err.Error()})

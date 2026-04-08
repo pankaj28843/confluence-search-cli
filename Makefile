@@ -1,6 +1,10 @@
 .PHONY: build install uninstall test clean
 
 BINARY := confluence-search
+VERSION := $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
+BUILD_TIME := $(VERSION)
+COMMIT := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+LDFLAGS := -X main.version=$(VERSION) -X main.buildTime=$(BUILD_TIME) -X main.commit=$(COMMIT)
 
 INSTALL_DIR := $(shell \
 	if [ -d "$$HOME/.local/bin" ] && echo "$$PATH" | grep -q "$$HOME/.local/bin"; then \
@@ -12,7 +16,7 @@ INSTALL_DIR := $(shell \
 	fi)
 
 build:
-	go build -o $(BINARY) ./cmd/confluence-search/
+	go build -ldflags "$(LDFLAGS)" -o $(BINARY) ./cmd/confluence-search/
 
 install: build
 	@mkdir -p $(INSTALL_DIR)

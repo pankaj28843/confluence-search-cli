@@ -18,6 +18,8 @@ var (
 	jsonOutput bool
 	timing     bool
 	version    = "dev"
+	buildTime  = "unknown"
+	commit     = "unknown"
 
 	// clientFactory builds the API client. Overridden in tests.
 	clientFactory = getClient
@@ -27,7 +29,8 @@ func main() {
 	root := &cobra.Command{
 		Use:   "confluence-search",
 		Short: "Fast Confluence search from the command line",
-		Long: `confluence-search - Confluence Search CLI
+		Long: fmt.Sprintf(`confluence-search - Confluence Search CLI
+Version: %s (built %s, commit %s)
 
 Search Confluence pages and fetch content directly from the terminal.
 Translates natural language queries to CQL and calls the Confluence REST API.
@@ -40,14 +43,14 @@ Workflow:
   confluence-search search "deployment process"           Search pages
   confluence-search search "API docs" --spaces ENG,OPS    Filter by space
   confluence-search fetch 12345                           Fetch page content
-  confluence-search health                                Check API connectivity`,
+  confluence-search health                                Check API connectivity`, version, buildTime, commit),
 		SilenceUsage:  true,
 		SilenceErrors: true,
 	}
 
 	root.PersistentFlags().BoolVar(&jsonOutput, "json", false, "Output as JSON (machine-readable)")
 	root.PersistentFlags().BoolVar(&timing, "timing", false, "Show execution time on stderr")
-	root.Version = version
+	root.Version = fmt.Sprintf("%s (built %s, commit %s)", version, buildTime, commit)
 
 	root.AddCommand(searchCmd())
 	root.AddCommand(fetchCmd())
